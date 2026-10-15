@@ -1,0 +1,385 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { PERSONAL_INFO, PROJECTS, SKILL_CATEGORIES } from '../../data/portfolio';
+import { useDesktop } from '../../context/DesktopContext';
+import { isAppId } from '../../types/os';
+import type { AppId } from '../../types/os';
+import { soundEngine } from '../ui/AudioFx';
+
+interface HistoryEntry {
+  command: string;
+  output: React.ReactNode;
+}
+
+export const TerminalApp: React.FC = () => {
+  const { openApp, setIsDarkMode } = useDesktop();
+  const [input, setInput] = useState('');
+  const [history, setHistory] = useState<HistoryEntry[]>([
+    {
+      command: 'welcome',
+      output: (
+        <div className="space-y-1 text-xs">
+          <p className="text-emerald-400 font-bold">
+            ⚡ Bienvenue sur le Terminal macOS de {PERSONAL_INFO.name} !
+          </p>
+          <p className="text-gray-400">
+            Tapez <span className="text-amber-300 font-mono">help</span> pour voir la liste des
+            commandes disponibles ou <span className="text-amber-300 font-mono">fetch</span> pour
+            les informations système.
+          </p>
+        </div>
+      ),
+    },
+  ]);
+  const [commandHistory, setCommandHistory] = useState<string[]>([]);
+  const [historyIdx, setHistoryIdx] = useState<number>(-1);
+  const [isMatrixActive, setIsMatrixActive] = useState<boolean>(false);
+
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [history, isMatrixActive]);
+
+  const handleContainerClick = () => {
+    inputRef.current?.focus();
+  };
+
+  const handleCommand = (cmdStr: string) => {
+    const trimmed = cmdStr.trim();
+    if (!trimmed) return;
+
+    soundEngine.playClick();
+    setCommandHistory((prev) => [...prev, trimmed]);
+    setHistoryIdx(-1);
+
+    const parts = trimmed.split(' ');
+    const command = parts[0].toLowerCase();
+    const args = parts.slice(1);
+
+    let output: React.ReactNode = null;
+
+    switch (command) {
+      case 'help':
+        output = (
+          <div className="space-y-1 text-xs text-gray-300">
+            <p className="text-emerald-400 font-semibold mb-1">Commandes disponibles :</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 font-mono">
+              <div>
+                <span className="text-amber-300">about</span> : Profil & bio
+              </div>
+              <div>
+                <span className="text-amber-300">skills</span> : Compétences techniques
+              </div>
+              <div>
+                <span className="text-amber-300">projects</span> : Liste des projets
+              </div>
+              <div>
+                <span className="text-amber-300">contact</span> : Coordonnées & réseaux
+              </div>
+              <div>
+                <span className="text-amber-300">open &lt;app&gt;</span> : Ouvre une app (projects, contact, etc.)
+              </div>
+              <div>
+                <span className="text-amber-300">fetch</span> : Specs système (Neofetch)
+              </div>
+              <div>
+                <span className="text-amber-300">matrix</span> : Pluie digitale Matrix
+              </div>
+              <div>
+                <span className="text-amber-300">theme &lt;dark|light&gt;</span> : Change le thème
+              </div>
+              <div>
+                <span className="text-amber-300">date</span> : Date et heure
+              </div>
+              <div>
+                <span className="text-amber-300">clear</span> : Effacer l'écran
+              </div>
+            </div>
+          </div>
+        );
+        break;
+
+      case 'about':
+      case 'whoami':
+      case 'bio':
+        output = (
+          <div className="space-y-1.5 text-xs text-gray-300">
+            <p className="font-bold text-white text-sm">{PERSONAL_INFO.name}</p>
+            <p className="text-cyan-400">{PERSONAL_INFO.role}</p>
+            <p className="text-gray-300 max-w-xl">{PERSONAL_INFO.bio}</p>
+            <p className="text-gray-400">📍 {PERSONAL_INFO.location}</p>
+            <p className="text-emerald-400 font-semibold">✨ {PERSONAL_INFO.availabilityText}</p>
+          </div>
+        );
+        break;
+
+      case 'skills':
+        output = (
+          <div className="space-y-2 text-xs">
+            {SKILL_CATEGORIES.map((cat, i) => (
+              <div key={i}>
+                <p className="text-amber-400 font-semibold">{cat.name} :</p>
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  {cat.skills.map((s, idx) => (
+                    <span
+                      key={idx}
+                      className="px-2 py-0.5 rounded bg-gray-800 text-gray-200 font-mono text-[11px] border border-gray-700"
+                    >
+                      {s.name}
+                      {s.level !== undefined && <span className="text-emerald-400"> ({s.level}%)</span>}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+        break;
+
+      case 'projects':
+      case 'ls':
+        output = (
+          <div className="space-y-1.5 text-xs">
+            <p className="text-emerald-400 font-semibold">Projets récents ({PROJECTS.length}) :</p>
+            <div className="space-y-1 font-mono">
+              {PROJECTS.map((p) => (
+                <div key={p.id} className="flex flex-col sm:flex-row sm:items-center justify-between text-gray-300 bg-gray-800/40 p-1.5 rounded">
+                  <div>
+                    <span className="text-cyan-400 font-bold">{p.title}</span>
+                    <span className="text-gray-500 ml-2">[{p.category}]</span>
+                  </div>
+                  <div className="text-gray-400 text-[11px]">
+                    {p.tags.slice(0, 3).join(', ')}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-gray-400 mt-2">
+              💡 Utilisez <span className="text-amber-300 font-mono">open projects</span> pour explorer le Finder graphique.
+            </p>
+          </div>
+        );
+        break;
+
+      case 'contact':
+      case 'email':
+        output = (
+          <div className="space-y-1 text-xs text-gray-300 font-mono">
+            <p>
+              📧 <span className="text-white">Email:</span>{' '}
+              <a href={PERSONAL_INFO.socials.email} className="text-cyan-400 underline">
+                {PERSONAL_INFO.email}
+              </a>
+            </p>
+            <p>
+              🐙 <span className="text-white">GitHub:</span>{' '}
+              <a href={PERSONAL_INFO.socials.github} target="_blank" rel="noreferrer" className="text-cyan-400 underline">
+                {PERSONAL_INFO.socials.github}
+              </a>
+            </p>
+            <p>
+              💼 <span className="text-white">LinkedIn:</span>{' '}
+              <a href={PERSONAL_INFO.socials.linkedin} target="_blank" rel="noreferrer" className="text-cyan-400 underline">
+                {PERSONAL_INFO.socials.linkedin}
+              </a>
+            </p>
+          </div>
+        );
+        break;
+
+      case 'open':
+        if (args.length === 0) {
+          output = <p className="text-red-400 text-xs font-mono">Usage: open &lt;app_name&gt; (ex: open projects, open contact, open about)</p>;
+        } else {
+          const targetApp = args[0].toLowerCase();
+          const validApps: AppId[] = ['projects', 'contact', 'about', 'settings', 'finder', 'assistant'];
+          if (isAppId(targetApp) && validApps.includes(targetApp)) {
+            openApp(targetApp);
+            output = <p className="text-emerald-400 text-xs font-mono">Ouverture de l'application '{targetApp}'...</p>;
+          } else {
+            output = <p className="text-red-400 text-xs font-mono">Application inconnue : '{targetApp}'. Essayez : {validApps.join(', ')}</p>;
+          }
+        }
+        break;
+
+      case 'snake':
+        openApp('snake');
+        output = <p className="text-emerald-400 text-xs font-mono">🐍 Easter egg trouvé ! Lancement de Snake...</p>;
+        break;
+
+      case 'fetch':
+      case 'neofetch':
+        output = (
+          <div className="flex flex-col sm:flex-row gap-4 text-xs font-mono text-gray-300 py-1">
+            <pre className="text-cyan-400 leading-tight font-bold shrink-0">
+{`                    'c.
+                 ,xNMM.
+               .OMMMMo
+               OMMM0,
+     .;loddo:' loolloddol;.
+   cKMMMMMMMMMMNWMMMMMMMMMM0:
+ .KMMMMMMMMMMMMMMMMMMMMMMMWd.
+ XMMMMMMMMMMMMMMMMMMMMMMMX.
+;MMMMMMMMMMMMMMMMMMMMMMMM:
+:MMMMMMMMMMMMMMMMMMMMMMMM:
+.MMMMMMMMMMMMMMMMMMMMMMMX.
+ kMMMMMMMMMMMMMMMMMMMMMMWd.
+  'XMMMMMMMMMMMMMMMMMMMMk.
+    'xXWMMMMMMMMMMMMKx'
+        ':ldkOOkdl;'`}
+            </pre>
+            <div className="space-y-0.5">
+              <p className="text-emerald-400 font-bold">{PERSONAL_INFO.shortName}@macbook-pro</p>
+              <p className="text-gray-500">----------------------</p>
+              <p><span className="text-amber-300 font-semibold">OS:</span> macOS Sonoma (Portfolio Edition)</p>
+              <p><span className="text-amber-300 font-semibold">Host:</span> MacBook Pro (M3 Max / Web Edition)</p>
+              <p><span className="text-amber-300 font-semibold">Kernel:</span> Astro 7 + React 19 + Bun</p>
+              <p><span className="text-amber-300 font-semibold">Uptime:</span> 100% Up & Running</p>
+              <p><span className="text-amber-300 font-semibold">Shell:</span> zsh 5.9 (x86_64-apple-darwin23.0)</p>
+              <p><span className="text-amber-300 font-semibold">Tech Stack:</span> {PERSONAL_INFO.stats.favoriteStack}</p>
+              <p><span className="text-amber-300 font-semibold">Memory:</span> 64 GB Unified RAM</p>
+              <div className="flex gap-1.5 pt-2">
+                <span className="w-3 h-3 bg-black rounded-sm inline-block" />
+                <span className="w-3 h-3 bg-red-500 rounded-sm inline-block" />
+                <span className="w-3 h-3 bg-green-500 rounded-sm inline-block" />
+                <span className="w-3 h-3 bg-yellow-500 rounded-sm inline-block" />
+                <span className="w-3 h-3 bg-blue-500 rounded-sm inline-block" />
+                <span className="w-3 h-3 bg-magenta-500 rounded-sm inline-block" />
+                <span className="w-3 h-3 bg-cyan-500 rounded-sm inline-block" />
+                <span className="w-3 h-3 bg-white rounded-sm inline-block" />
+              </div>
+            </div>
+          </div>
+        );
+        break;
+
+      case 'matrix':
+        setIsMatrixActive(true);
+        output = <p className="text-emerald-400 text-xs font-mono">Démarrage du protocole Matrix... (Cliquez ou appuyez sur une touche pour quitter)</p>;
+        break;
+
+      case 'theme':
+        if (args[0] === 'dark') {
+          setIsDarkMode(true);
+          output = <p className="text-emerald-400 text-xs font-mono">Thème sombre activé.</p>;
+        } else if (args[0] === 'light') {
+          setIsDarkMode(false);
+          output = <p className="text-emerald-400 text-xs font-mono">Thème clair activé.</p>;
+        } else {
+          output = <p className="text-yellow-400 text-xs font-mono">Usage: theme dark | theme light</p>;
+        }
+        break;
+
+      case 'date':
+        output = <p className="text-gray-300 text-xs font-mono">{new Date().toString()}</p>;
+        break;
+
+      case 'clear':
+        setHistory([]);
+        setInput('');
+        return;
+
+      case 'sudo':
+        output = (
+          <p className="text-red-400 text-xs font-mono">
+            ⚠️ Permission denied: l'utilisateur visiteur n'a pas les droits root sur ce portfolio ! 😄
+          </p>
+        );
+        break;
+
+      default:
+        output = (
+          <p className="text-red-400 text-xs font-mono">
+            zsh: commande non trouvée : <span className="text-white">{trimmed}</span>. Tapez{' '}
+            <span className="text-amber-300 underline">help</span> pour voir les commandes disponibles.
+          </p>
+        );
+        break;
+    }
+
+    setHistory((prev) => [...prev, { command: trimmed, output }]);
+    setInput('');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (isMatrixActive) {
+      setIsMatrixActive(false);
+      return;
+    }
+
+    if (e.key === 'Enter') {
+      handleCommand(input);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (commandHistory.length > 0) {
+        const nextIdx = historyIdx === -1 ? commandHistory.length - 1 : Math.max(0, historyIdx - 1);
+        setHistoryIdx(nextIdx);
+        setInput(commandHistory[nextIdx]);
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (historyIdx !== -1) {
+        const nextIdx = historyIdx + 1;
+        if (nextIdx < commandHistory.length) {
+          setHistoryIdx(nextIdx);
+          setInput(commandHistory[nextIdx]);
+        } else {
+          setHistoryIdx(-1);
+          setInput('');
+        }
+      }
+    }
+  };
+
+  return (
+    <div
+      onClick={handleContainerClick}
+      className="flex-1 bg-[#141418] text-gray-200 font-mono p-4 overflow-y-auto relative select-text cursor-text"
+    >
+      {isMatrixActive && (
+        <div
+          onClick={() => setIsMatrixActive(false)}
+          className="absolute inset-0 bg-black z-20 flex items-center justify-center cursor-pointer p-4"
+        >
+          <div className="text-emerald-500 text-center space-y-2 animate-pulse font-mono">
+            <p className="text-2xl font-bold">01001000 01000101 01001100 01001100 01001111</p>
+            <p className="text-sm text-emerald-400">Wake up, Neo... The Matrix has you.</p>
+            <p className="text-xs text-gray-500 mt-4">(Cliquez pour revenir au Terminal)</p>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {history.map((entry, idx) => (
+          <div key={idx} className="space-y-1">
+            {entry.command !== 'welcome' && (
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-emerald-400 font-bold">sbonneau@macbook-pro</span>
+                <span className="text-cyan-400 font-bold">~ %</span>
+                <span className="text-white font-medium">{entry.command}</span>
+              </div>
+            )}
+            <div className="pl-0">{entry.output}</div>
+          </div>
+        ))}
+
+        <div className="flex items-center gap-2 text-xs pt-1">
+          <span className="text-emerald-400 font-bold">sbonneau@macbook-pro</span>
+          <span className="text-cyan-400 font-bold">~ %</span>
+          <input
+            ref={inputRef}
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            className="flex-1 bg-transparent text-white focus:outline-none font-mono caret-emerald-400"
+            autoFocus
+            spellCheck={false}
+          />
+        </div>
+        <div ref={bottomRef} />
+      </div>
+    </div>
+  );
+};

@@ -1,0 +1,139 @@
+@import "tailwindcss";
+
+/* Dark mode follows the `dark` class toggled by the desktop, not the OS setting. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    user-select: none;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(150, 150, 150, 0.3);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(150, 150, 150, 0.5);
+}
+
+.macos-glass {
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.dark .macos-glass {
+  background: rgba(30, 30, 35, 0.72);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.macos-window-shadow {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+}
+
+.dark .macos-window-shadow {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+}
+
+.lock-shimmer {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.95) 50%, rgba(255, 255, 255, 0.35) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: lock-shimmer 2.6s linear infinite;
+}
+
+@keyframes lock-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Aero glass: translucent tinted surfaces with a glossy top edge. Kept in the
+   components layer so Tailwind utilities can still override them. */
+@layer components {
+  .aero-glass,
+  .aero-glass-strong {
+    position: relative;
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0.35) 48%, rgba(255, 255, 255, 0.42) 100%);
+    backdrop-filter: blur(24px) saturate(170%);
+    -webkit-backdrop-filter: blur(24px) saturate(170%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.6),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+      0 8px 40px rgba(5, 25, 30, 0.35);
+  }
+
+  .aero-glass-strong {
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.82) 0%, rgba(255, 255, 255, 0.7) 48%, rgba(255, 255, 255, 0.76) 100%);
+  }
+
+  .dark .aero-glass {
+    border-color: rgba(255, 255, 255, 0.16);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.06) 48%, rgba(255, 255, 255, 0.1) 100%);
+    background-color: rgba(10, 35, 42, 0.18);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.22),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+      0 8px 40px rgba(5, 25, 30, 0.45);
+  }
+
+  .dark .aero-glass-strong {
+    border-color: rgba(255, 255, 255, 0.16);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.05) 48%, rgba(255, 255, 255, 0.08) 100%);
+    background-color: rgba(12, 32, 38, 0.72);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.2),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+      0 12px 48px rgba(0, 15, 20, 0.55);
+  }
+
+  /* Glossy highlight on app icons: a soft reflection over the top half. */
+  .aero-gloss::after {
+    content: '';
+    position: absolute;
+    inset: 1px 1px 50% 1px;
+    border-radius: inherit;
+    border-bottom-left-radius: 50% 18%;
+    border-bottom-right-radius: 50% 18%;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0.08) 100%);
+    pointer-events: none;
+  }
+
+  .aero-gloss::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28), inset 0 -3px 8px rgba(0, 0, 0, 0.2);
+    pointer-events: none;
+  }
+}
+
+@keyframes notification-countdown {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}

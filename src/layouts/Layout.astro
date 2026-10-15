@@ -1,0 +1,119 @@
+---
+import '../styles/global.css';
+
+interface Props {
+	title?: string;
+	description?: string;
+	image?: string;
+}
+
+const {
+	title = 'Samuel Bonneau — Développeur Fullstack',
+	description = 'Portfolio interactif de Samuel Bonneau, développeur Fullstack et étudiant à 42 Le Havre, en recherche d’alternance ou de stage pour 2026. Conçu avec Astro, React, Tailwind CSS et Bun.',
+	image = '/og.jpg',
+} = Astro.props;
+
+const site = Astro.site ?? new URL('https://sbonneau.vynq.dev');
+const canonical = new URL(Astro.url.pathname, site).href;
+const imageUrl = new URL(image, site).href;
+
+const personSchema = {
+	'@context': 'https://schema.org',
+	'@type': 'Person',
+	name: 'Samuel Bonneau',
+	url: site.href,
+	image: imageUrl,
+	jobTitle: 'Développeur Fullstack',
+	email: 'sbonneau@student.42lehavre.fr',
+	alumniOf: [
+		{ '@type': 'EducationalOrganization', name: 'École 42 Le Havre' },
+		{ '@type': 'EducationalOrganization', name: 'Lycée Henri Darras' },
+	],
+	sameAs: [
+		'https://github.com/eyjvw',
+		'https://www.linkedin.com/in/sbonneau/',
+		'https://vynq.dev',
+	],
+	knowsAbout: ['C', 'C++', 'JavaScript', 'TypeScript', 'Python', 'Go', 'Java', 'Docker', 'Linux', 'PostgreSQL'],
+};
+---
+
+<!doctype html>
+<html lang="fr" class="dark">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+		<meta name="generator" content={Astro.generator} />
+		<title>{title}</title>
+		<meta name="description" content={description} />
+		<meta name="author" content="Samuel Bonneau" />
+		<link rel="canonical" href={canonical} />
+
+		<meta name="robots" content="index, follow, max-image-preview:large" />
+		<meta name="theme-color" content="#0b0c10" />
+
+		<link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
+		<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+		<link rel="manifest" href="/site.webmanifest" />
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-title" content="Samuel Bonneau" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+		<meta property="og:type" content="website" />
+		<meta property="og:site_name" content="Samuel Bonneau" />
+		<meta property="og:locale" content="fr_FR" />
+		<meta property="og:url" content={canonical} />
+		<meta property="og:title" content={title} />
+		<meta property="og:description" content={description} />
+		<meta property="og:image" content={imageUrl} />
+		<meta property="og:image:width" content="1200" />
+		<meta property="og:image:height" content="630" />
+		<meta property="og:image:alt" content="Samuel Bonneau — Développeur Fullstack, étudiant à 42 Le Havre" />
+
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:title" content={title} />
+		<meta name="twitter:description" content={description} />
+		<meta name="twitter:image" content={imageUrl} />
+
+		<script type="application/ld+json" set:html={JSON.stringify(personSchema)} />
+		<script is:inline>
+			// Types the name into the tab title, then blinks the caret a few times.
+			// Replays when the visitor comes back to the tab.
+			(() => {
+				const text = 'Samuel Bonneau';
+				const caret = '▍';
+				if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+					document.title = text;
+					return;
+				}
+				let timer;
+				const type = () => {
+					clearTimeout(timer);
+					let i = 0;
+					let blinks = 0;
+					const step = () => {
+						if (i <= text.length) {
+							document.title = text.slice(0, i) + caret;
+							i += 1;
+							timer = setTimeout(step, i === 1 ? 300 : 110);
+						} else if (blinks < 6) {
+							document.title = blinks % 2 === 0 ? text : text + caret;
+							blinks += 1;
+							timer = setTimeout(step, 450);
+						} else {
+							document.title = text;
+						}
+					};
+					step();
+				};
+				type();
+				document.addEventListener('visibilitychange', () => {
+					if (document.visibilityState === 'visible') type();
+				});
+			})();
+		</script>
+	</head>
+	<body class="bg-[#0b0c10] text-slate-100 overflow-hidden select-none antialiased">
+		<slot />
+	</body>
+</html>

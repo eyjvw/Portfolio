@@ -1,0 +1,15 @@
+{
+  "name": "Samuel Bonneau — Portfolio",
+  "short_name": "Samuel Bonneau",
+  "description": "Portfolio interactif de Samuel Bonneau, développeur Fullstack et étudiant à 42 Le Havre.",
+  "lang": "fr",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0c10",
+  "theme_color": "#0b0c10",
+  "icons": [
+    { "src": "/icon-192.png", "type": "image/png", "sizes": "192x192" },
+    { "src": "/chat.png", "type": "image/png", "sizes": "256x256" },
+    { "src": "/apple-touch-icon.png", "type": "image/png", "sizes": "180x180" }
+  ]
+}
