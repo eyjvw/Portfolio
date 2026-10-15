@@ -62,6 +62,13 @@ Le build produit un site entièrement statique dans `dist/`, à servir avec n'im
 
 Avant de déployer, renseigne ton domaine dans `site`, dans `astro.config.mjs`. Il sert à l'URL canonique, au sitemap et aux aperçus de liens.
 
+Le dépôt fournit aussi une image Docker : le `Dockerfile` construit le site avec Bun, puis le sert avec Caddy sur le port 80. À chaque push sur `master`, le workflow `.github/workflows/docker.yml` publie l'image sur `ghcr.io/eyjvw/portfolio` (tags `latest` et SHA du commit).
+
+```sh
+docker build -t portfolio .
+docker run --rm -p 8080:80 portfolio   # http://localhost:8080
+```
+
 ## Personnaliser
 
 - **Contenu** : tout est dans `src/data/portfolio.ts` (profil, compétences, formation, projets, outils du widget, fonds d'écran).
