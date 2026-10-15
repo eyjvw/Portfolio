@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { PERSONAL_INFO } from '../../data/portfolio';
+import React, { useRef, useState } from 'react';
+import { PERSONAL_INFO, WEB3FORMS_ACCESS_KEY } from '../../data/portfolio';
 import {
   Mail,
   Send,
@@ -13,6 +13,9 @@ import {
 } from '../ui/Icons';
 import { soundEngine } from '../ui/AudioFx';
 
+/** Minimum time between opening the form and submitting it; faster means a bot. */
+const MIN_FILL_TIME_MS = 3000;
+
 export const ContactApp: React.FC = () => {
   const [formData, setFormData] = useState({
     name: '',
@@ -21,7 +24,10 @@ export const ContactApp: React.FC = () => {
     message: '',
   });
   const [isCopied, setIsCopied] = useState(false);
-  const [isSent, setIsSent] = useState(false);
+  const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [botcheck, setBotcheck] = useState(false);
+  const openedAt = useRef(Date.now());
 
   const handleCopyEmail = () => {
     navigator.clipboard.writeText(PERSONAL_INFO.email);
@@ -30,22 +36,55 @@ export const ContactApp: React.FC = () => {
     setTimeout(() => setIsCopied(false), 2000);
   };
 
-  // No backend yet: hand the message to the visitor's mail client, pre-filled.
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (status === 'sending') return;
     if (!formData.name || !formData.email || !formData.message) return;
 
-    const subject = formData.subject.trim() || `Prise de contact de ${formData.name}`;
-    const body = `${formData.message}\n\n--\n${formData.name}\n${formData.email}`;
-    window.location.href = `mailto:${PERSONAL_INFO.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    // Spam guards: bots fill the hidden checkbox or submit within seconds of
+    // opening the form. They get a fake success so they don't retry.
+    if (botcheck || Date.now() - openedAt.current < MIN_FILL_TIME_MS) {
+      setStatus('sent');
+      return;
+    }
 
-    soundEngine.playSuccess();
-    setIsSent(true);
+    setStatus('sending');
+    soundEngine.playClick();
+
+    try {
+      const response = await fetch('https://api.web3forms.com/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          access_key: WEB3FORMS_ACCESS_KEY,
+          subject: `[Portfolio] ${formData.subject.trim() || `Message de ${formData.name}`}`,
+          from_name: 'Portfolio sbonneau',
+          name: formData.name,
+          email: formData.email,
+          message: formData.message,
+          botcheck: false,
+        }),
+      });
+      const result = (await response.json().catch(() => null)) as { success?: boolean; message?: string } | null;
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.message || `Erreur ${response.status}`);
+      }
+
+      soundEngine.playSuccess();
+      setStatus('sent');
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Erreur réseau');
+      setStatus('error');
+    }
   };
 
   const resetForm = () => {
     setFormData({ name: '', email: '', subject: '', message: '' });
-    setIsSent(false);
+    setBotcheck(false);
+    setErrorMessage('');
+    openedAt.current = Date.now();
+    setStatus('idle');
   };
 
   return (
@@ -130,17 +169,16 @@ export const ContactApp: React.FC = () => {
       </div>
 
       <div className="flex-1 flex flex-col overflow-y-auto">
-        {isSent ? (
+        {status === 'sent' ? (
           <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
             <div className="w-16 h-16 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center mb-4">
               <CheckCircle2 size={36} />
             </div>
             <h3 className="text-lg font-bold text-slate-800 dark:text-neutral-100">
-              Votre messagerie s'est ouverte
+              Message envoyé !
             </h3>
             <p className="text-xs text-slate-500 dark:text-neutral-400 mt-2 max-w-sm">
-              Le message est prêt : il ne reste qu'à cliquer sur Envoyer. Si rien ne s'est ouvert,
-              écrivez-moi directement à {PERSONAL_INFO.email}.
+              Merci, je l'ai bien reçu et je vous réponds dès que possible à l'adresse indiquée.
             </p>
             <button
               onClick={resetForm}
@@ -151,6 +189,17 @@ export const ContactApp: React.FC = () => {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="flex-1 flex flex-col p-5 md:p-6 space-y-4">
+            {/* Honeypot: invisible to people, filled in by naive bots. */}
+            <input
+              type="checkbox"
+              name="botcheck"
+              checked={botcheck}
+              onChange={(e) => setBotcheck(e.target.checked)}
+              tabIndex={-1}
+              autoComplete="off"
+              aria-hidden="true"
+              className="hidden"
+            />
             <div className="flex items-center justify-between border-b border-black/5 dark:border-white/10 pb-3">
               <div>
                 <h2 className="text-base font-bold text-slate-800 dark:text-neutral-100 flex items-center gap-2">
@@ -171,6 +220,7 @@ export const ContactApp: React.FC = () => {
                   <input
                     type="text"
                     required
+                    maxLength={100}
                     placeholder="Jean Dupont"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -184,6 +234,7 @@ export const ContactApp: React.FC = () => {
                   <input
                     type="email"
                     required
+                    maxLength={200}
                     placeholder="jean.dupont@entreprise.com"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -210,6 +261,7 @@ export const ContactApp: React.FC = () => {
                 </label>
                 <textarea
                   required
+                  maxLength={5000}
                   rows={6}
                   placeholder="Bonjour Samuel, j'ai vu votre portfolio et j'aimerais discuter d'un projet..."
                   value={formData.message}
@@ -218,15 +270,25 @@ export const ContactApp: React.FC = () => {
                 ></textarea>
               </div>
             </div>
-            <div className="pt-2 flex items-center justify-between">
+            {status === 'error' && (
+              <p role="alert" className="text-xs rounded-lg px-3 py-2 bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400">
+                L'envoi a échoué ({errorMessage}). Réessayez, ou écrivez-moi directement à{' '}
+                <a href={PERSONAL_INFO.socials.email} className="underline font-semibold">
+                  {PERSONAL_INFO.email}
+                </a>
+                .
+              </p>
+            )}
+            <div className="pt-2 flex items-center justify-between gap-3">
               <span className="text-[11px] text-slate-400">
                 🔒 Vos coordonnées restent strictement confidentielles.
               </span>
               <button
                 type="submit"
-                className="px-5 py-2.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition-all disabled:opacity-50"
+                disabled={status === 'sending'}
+                className="px-5 py-2.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition-all disabled:opacity-50 shrink-0"
               >
-                <Send size={14} /> Envoyer le message
+                <Send size={14} /> {status === 'sending' ? 'Envoi…' : 'Envoyer le message'}
               </button>
             </div>
           </form>

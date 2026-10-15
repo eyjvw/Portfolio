@@ -38,7 +38,7 @@ Sur ordinateur, le site reproduit un bureau macOS. Sur mobile, il devient un éc
 - **Titre d'onglet animé** : le nom s'écrit lettre par lettre au chargement.
 - **Sons d'interface** générés en Web Audio, sans aucun fichier audio.
 
-Le formulaire de contact n'a pas de serveur : il ouvre la messagerie du visiteur avec le message déjà rempli.
+Le formulaire de contact envoie les messages par [Web3Forms](https://web3forms.com), sans serveur à héberger. Un champ piège invisible et un délai minimal avant envoi écartent les robots simples. La clé d'accès se change dans `src/data/portfolio.ts` (`WEB3FORMS_ACCESS_KEY`).
 
 ## Stack
 

@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 import sitemap from '@astrojs/sitemap';
 
 export default defineConfig({
-  site: 'https://sbonneau.vynq.dev',
+  site: 'https://sbonneau.xyz',
   integrations: [react(), sitemap()],
   vite: {
     plugins: [tailwindcss()],

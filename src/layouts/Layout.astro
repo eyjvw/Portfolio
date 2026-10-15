@@ -13,7 +13,7 @@ const {
 	image = '/og.jpg',
 } = Astro.props;
 
-const site = Astro.site ?? new URL('https://sbonneau.vynq.dev');
+const site = Astro.site ?? new URL('https://sbonneau.xyz');
 const canonical = new URL(Astro.url.pathname, site).href;
 const imageUrl = new URL(image, site).href;
 

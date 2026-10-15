@@ -33,6 +33,12 @@ export const PERSONAL_INFO = {
   },
 };
 
+/**
+ * Web3Forms access key for the contact form. It is meant to be public: it can
+ * only deliver messages to the inbox it was created for.
+ */
+export const WEB3FORMS_ACCESS_KEY = 'bc6a646d-0401-4726-81a4-42b0cb18b1fa';
+
 export const APPS: AppDefinition[] = [
   {
     id: 'finder',
