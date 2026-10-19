@@ -77,6 +77,21 @@ const personSchema = {
 
 		<script type="application/ld+json" set:html={JSON.stringify(personSchema)} />
 		<script is:inline>
+			// Runs before the first paint. Skips the boot screen when this tab already
+			// saw it, and turns on lite mode on weak machines (kept in sync with
+			// src/lib/performance.ts).
+			(() => {
+				const root = document.documentElement;
+				try {
+					if (sessionStorage.getItem('booted')) root.setAttribute('data-booted', '');
+					const mode = localStorage.getItem('perf-mode');
+					const weak = (navigator.hardwareConcurrency || 8) <= 2 || (navigator.deviceMemory || 8) <= 4;
+					const detected = localStorage.getItem('perf-detected-lite');
+					if (mode === 'lite' || (mode !== 'full' && (weak || detected))) root.classList.add('lite');
+				} catch {}
+			})();
+		</script>
+		<script is:inline>
 			// Types the name into the tab title, then blinks the caret a few times.
 			// Replays when the visitor comes back to the tab.
 			(() => {

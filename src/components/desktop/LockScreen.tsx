@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
 import { useDesktop } from '../../context/DesktopContext';
 import { PERSONAL_INFO } from '../../data/portfolio';
-import { Github, Mail } from '../ui/Icons';
+import { Github, Mail, FileText } from '../ui/Icons';
 
 const NOISE =
   "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.55 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.9'/></svg>\")";
@@ -112,8 +112,14 @@ const SlideToUnlock: React.FC<{ onUnlock: () => void }> = ({ onUnlock }) => {
   );
 };
 
-export const LockScreen: React.FC<{ isMobile: boolean }> = ({ isMobile }) => {
-  const { isLocked, unlockScreen, wallpaper } = useDesktop();
+interface LockScreenProps {
+  isMobile: boolean;
+  /** Unlocks straight into the profile window, for visitors in a hurry. */
+  onOpenResume: () => void;
+}
+
+export const LockScreen: React.FC<LockScreenProps> = ({ isMobile, onOpenResume }) => {
+  const { isLocked, unlockScreen, wallpaper, systemState } = useDesktop();
   const { time, date } = useClock();
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -122,7 +128,8 @@ export const LockScreen: React.FC<{ isMobile: boolean }> = ({ isMobile }) => {
   }, [isLocked, unlockScreen]);
 
   useEffect(() => {
-    if (!isLocked) return;
+    // Keys belong to the boot screen until it is gone.
+    if (!isLocked || systemState !== 'running') return;
     rootRef.current?.focus();
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Enter' || e.key === ' ') {
@@ -132,7 +139,7 @@ export const LockScreen: React.FC<{ isMobile: boolean }> = ({ isMobile }) => {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isLocked, unlockScreen]);
+  }, [isLocked, unlockScreen, systemState]);
 
   return (
     <AnimatePresence>
@@ -154,7 +161,7 @@ export const LockScreen: React.FC<{ isMobile: boolean }> = ({ isMobile }) => {
         >
           <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-black/5 to-black/40 pointer-events-none" />
           <div
-            className="absolute -inset-0.5 pointer-events-none opacity-[0.28] mix-blend-overlay"
+            className="lock-noise absolute -inset-0.5 pointer-events-none opacity-[0.28] mix-blend-overlay"
             style={{ backgroundImage: NOISE, backgroundSize: '240px 240px' }}
           />
 
@@ -193,6 +200,17 @@ export const LockScreen: React.FC<{ isMobile: boolean }> = ({ isMobile }) => {
                   {link.label}
                 </a>
               ))}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenResume();
+                }}
+                className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-[11px] font-semibold tracking-[0.02em] text-neutral-900 shadow-[0_4px_16px_rgba(8,30,35,0.3)] transition hover:bg-white/90 active:scale-[0.92] cursor-pointer"
+              >
+                <FileText size={14} />
+                CV express
+              </button>
             </motion.nav>
 
             <motion.div

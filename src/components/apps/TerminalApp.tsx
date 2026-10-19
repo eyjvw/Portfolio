@@ -2,20 +2,58 @@ import React, { useState, useRef, useEffect } from 'react';
 import { PERSONAL_INFO, PROJECTS, SKILL_CATEGORIES } from '../../data/portfolio';
 import { useDesktop } from '../../context/DesktopContext';
 import { isAppId } from '../../types/os';
-import type { AppId } from '../../types/os';
 import { soundEngine } from '../ui/AudioFx';
+import { MatrixRain } from './terminal/MatrixRain';
+import { OPENABLE_APPS, complete } from './terminal/completion';
+import { GitLogFailure, GitLogLoading, GitLogOutput, fetchCommits, getCachedCommits } from './terminal/gitLog';
 
 interface HistoryEntry {
-  command: string;
+  id: number;
+  // null for the welcome banner, which has no prompt line.
+  command: string | null;
   output: React.ReactNode;
 }
 
+const RM_RF_ROOT = ['sudo rm -rf /', 'sudo rm -rf /*', 'rm -rf /', 'rm -rf /*', 'sudo rm -rf --no-preserve-root /'];
+const RM_RF_PATHS = [
+  '/System/Library/CoreServices',
+  '/System/Library/Frameworks',
+  '/Applications/Safari.app',
+  '/Applications/Xcode.app',
+  '/usr/bin',
+  '/usr/lib',
+  '/bin/zsh',
+  '/private/var/db',
+  '/Library/Fonts',
+  '/Users/sbonneau/Documents',
+  '/Users/sbonneau/portfolio/node_modules',
+  '/Users/sbonneau/portfolio/src',
+];
+// Paths plus the final kernel line, one every 115 ms: about 1.5 s in all.
+const RM_RF_LINES = RM_RF_PATHS.length + 1;
+const RM_RF_STEP_MS = 115;
+const RM_RF_PANIC_DELAY_MS = 600;
+
+const renderRmRf = (count: number) => (
+  <div className="space-y-0.5 text-xs font-mono">
+    {RM_RF_PATHS.slice(0, count).map((path) => (
+      <p key={path}>
+        <span className="text-red-400">rm: suppression de</span> <span className="text-gray-400">{path}...</span>
+      </p>
+    ))}
+    {count >= RM_RF_LINES && (
+      <p className="text-red-500 font-bold">rm: /System/Library/Kernels/kernel: Operation not permitted... ah si.</p>
+    )}
+  </div>
+);
+
 export const TerminalApp: React.FC = () => {
-  const { openApp, setIsDarkMode } = useDesktop();
+  const { openApp, setIsDarkMode, triggerKernelPanic } = useDesktop();
   const [input, setInput] = useState('');
   const [history, setHistory] = useState<HistoryEntry[]>([
     {
-      command: 'welcome',
+      id: 0,
+      command: null,
       output: (
         <div className="space-y-1 text-xs">
           <p className="text-emerald-400 font-bold">
@@ -33,16 +71,71 @@ export const TerminalApp: React.FC = () => {
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
   const [historyIdx, setHistoryIdx] = useState<number>(-1);
   const [isMatrixActive, setIsMatrixActive] = useState<boolean>(false);
+  const [isBusy, setIsBusy] = useState<boolean>(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const nextIdRef = useRef(1);
+  const isMountedRef = useRef(false);
+  const timersRef = useRef<number[]>([]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [history, isMatrixActive]);
 
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      timersRef.current.forEach((timer) => window.clearTimeout(timer));
+      timersRef.current = [];
+    };
+  }, []);
+
   const handleContainerClick = () => {
     inputRef.current?.focus();
+  };
+
+  const pushEntry = (command: string, output: React.ReactNode) => {
+    const id = nextIdRef.current++;
+    setHistory((prev) => [...prev, { id, command, output }]);
+    return id;
+  };
+
+  const updateEntry = (id: number, output: React.ReactNode) => {
+    setHistory((prev) => prev.map((entry) => (entry.id === id ? { ...entry, output } : entry)));
+  };
+
+  const schedule = (fn: () => void, delay: number) => {
+    timersRef.current.push(window.setTimeout(fn, delay));
+  };
+
+  const runGitLog = (command: string) => {
+    const cached = getCachedCommits();
+    if (cached) {
+      pushEntry(command, <GitLogOutput commits={cached} />);
+      return;
+    }
+
+    const id = pushEntry(command, <GitLogLoading />);
+    fetchCommits()
+      .then((commits) => <GitLogOutput commits={commits} />)
+      .catch((err: unknown) => <GitLogFailure message={err instanceof Error ? err.message : String(err)} />)
+      .then((output) => {
+        if (isMountedRef.current) updateEntry(id, output);
+      });
+  };
+
+  const runRmRf = (command: string) => {
+    setIsBusy(true);
+    const id = pushEntry(command, renderRmRf(1));
+    for (let count = 2; count <= RM_RF_LINES; count++) {
+      schedule(() => updateEntry(id, renderRmRf(count)), (count - 1) * RM_RF_STEP_MS);
+    }
+    schedule(() => {
+      setIsBusy(false);
+      triggerKernelPanic();
+    }, (RM_RF_LINES - 1) * RM_RF_STEP_MS + RM_RF_PANIC_DELAY_MS);
   };
 
   const handleCommand = (cmdStr: string) => {
@@ -52,10 +145,16 @@ export const TerminalApp: React.FC = () => {
     soundEngine.playClick();
     setCommandHistory((prev) => [...prev, trimmed]);
     setHistoryIdx(-1);
+    setInput('');
 
-    const parts = trimmed.split(' ');
+    const parts = trimmed.split(/\s+/);
     const command = parts[0].toLowerCase();
     const args = parts.slice(1);
+
+    if (RM_RF_ROOT.includes(parts.join(' ').toLowerCase())) {
+      runRmRf(trimmed);
+      return;
+    }
 
     let output: React.ReactNode = null;
 
@@ -90,12 +189,19 @@ export const TerminalApp: React.FC = () => {
                 <span className="text-amber-300">theme &lt;dark|light&gt;</span> : Change le thème
               </div>
               <div>
+                <span className="text-amber-300">git log</span> : Derniers commits du portfolio
+              </div>
+              <div>
                 <span className="text-amber-300">date</span> : Date et heure
               </div>
               <div>
                 <span className="text-amber-300">clear</span> : Effacer l'écran
               </div>
             </div>
+            <p className="text-gray-400 pt-1">
+              💡 <span className="text-amber-300 font-mono">Tab</span> complète les commandes,{' '}
+              <span className="text-amber-300 font-mono">↑ ↓</span> parcourent l'historique.
+            </p>
           </div>
         );
         break;
@@ -193,12 +299,11 @@ export const TerminalApp: React.FC = () => {
           output = <p className="text-red-400 text-xs font-mono">Usage: open &lt;app_name&gt; (ex: open projects, open contact, open about)</p>;
         } else {
           const targetApp = args[0].toLowerCase();
-          const validApps: AppId[] = ['projects', 'contact', 'about', 'settings', 'finder', 'assistant'];
-          if (isAppId(targetApp) && validApps.includes(targetApp)) {
+          if (isAppId(targetApp) && OPENABLE_APPS.includes(targetApp)) {
             openApp(targetApp);
             output = <p className="text-emerald-400 text-xs font-mono">Ouverture de l'application '{targetApp}'...</p>;
           } else {
-            output = <p className="text-red-400 text-xs font-mono">Application inconnue : '{targetApp}'. Essayez : {validApps.join(', ')}</p>;
+            output = <p className="text-red-400 text-xs font-mono">Application inconnue : '{targetApp}'. Essayez : {OPENABLE_APPS.join(', ')}</p>;
           }
         }
         break;
@@ -277,8 +382,15 @@ export const TerminalApp: React.FC = () => {
 
       case 'clear':
         setHistory([]);
-        setInput('');
         return;
+
+      case 'git':
+        if (args[0] === 'log' && (args.length === 1 || (args.length === 2 && args[1] === '--oneline'))) {
+          runGitLog(trimmed);
+          return;
+        }
+        output = <p className="text-yellow-400 text-xs font-mono">usage: git log</p>;
+        break;
 
       case 'sudo':
         output = (
@@ -298,18 +410,47 @@ export const TerminalApp: React.FC = () => {
         break;
     }
 
-    setHistory((prev) => [...prev, { command: trimmed, output }]);
-    setInput('');
+    pushEntry(trimmed, output);
+  };
+
+  const handleTab = () => {
+    const completion = complete(input);
+    if (!completion) return;
+
+    if (completion.kind === 'replace') {
+      setInput(completion.value);
+      return;
+    }
+
+    // Nothing left to complete: list the candidates under the typed line, like zsh.
+    pushEntry(
+      input,
+      <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs font-mono text-gray-300">
+        {completion.candidates.map((candidate) => (
+          <span key={candidate}>{candidate}</span>
+        ))}
+      </div>,
+    );
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (isMatrixActive) {
+      // Swallow the key so it doesn't end up typed in the prompt.
+      e.preventDefault();
       setIsMatrixActive(false);
+      return;
+    }
+
+    if (isBusy) {
+      if (e.key === 'Tab') e.preventDefault();
       return;
     }
 
     if (e.key === 'Enter') {
       handleCommand(input);
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      handleTab();
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       if (commandHistory.length > 0) {
@@ -333,52 +474,42 @@ export const TerminalApp: React.FC = () => {
   };
 
   return (
-    <div
-      onClick={handleContainerClick}
-      className="flex-1 bg-[#141418] text-gray-200 font-mono p-4 overflow-y-auto relative select-text cursor-text"
-    >
-      {isMatrixActive && (
-        <div
-          onClick={() => setIsMatrixActive(false)}
-          className="absolute inset-0 bg-black z-20 flex items-center justify-center cursor-pointer p-4"
-        >
-          <div className="text-emerald-500 text-center space-y-2 animate-pulse font-mono">
-            <p className="text-2xl font-bold">01001000 01000101 01001100 01001100 01001111</p>
-            <p className="text-sm text-emerald-400">Wake up, Neo... The Matrix has you.</p>
-            <p className="text-xs text-gray-500 mt-4">(Cliquez pour revenir au Terminal)</p>
-          </div>
-        </div>
-      )}
+    // The rain sits outside the scrolling area so it always covers the visible part.
+    <div onClick={handleContainerClick} className="flex-1 min-h-0 relative flex flex-col">
+      {isMatrixActive && <MatrixRain onExit={() => setIsMatrixActive(false)} />}
 
-      <div className="space-y-3">
-        {history.map((entry, idx) => (
-          <div key={idx} className="space-y-1">
-            {entry.command !== 'welcome' && (
-              <div className="flex items-center gap-2 text-xs">
-                <span className="text-emerald-400 font-bold">sbonneau@macbook-pro</span>
-                <span className="text-cyan-400 font-bold">~ %</span>
-                <span className="text-white font-medium">{entry.command}</span>
-              </div>
-            )}
-            <div className="pl-0">{entry.output}</div>
-          </div>
-        ))}
+      <div className="flex-1 bg-[#141418] text-gray-200 font-mono p-4 overflow-y-auto select-text cursor-text">
+        <div className="space-y-3">
+          {history.map((entry) => (
+            <div key={entry.id} className="space-y-1">
+              {entry.command !== null && (
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-emerald-400 font-bold">sbonneau@macbook-pro</span>
+                  <span className="text-cyan-400 font-bold">~ %</span>
+                  <span className="text-white font-medium">{entry.command}</span>
+                </div>
+              )}
+              <div className="pl-0">{entry.output}</div>
+            </div>
+          ))}
 
-        <div className="flex items-center gap-2 text-xs pt-1">
-          <span className="text-emerald-400 font-bold">sbonneau@macbook-pro</span>
-          <span className="text-cyan-400 font-bold">~ %</span>
-          <input
-            ref={inputRef}
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            className="flex-1 bg-transparent text-white focus:outline-none font-mono caret-emerald-400"
-            autoFocus
-            spellCheck={false}
-          />
+          <div className="flex items-center gap-2 text-xs pt-1">
+            <span className="text-emerald-400 font-bold">sbonneau@macbook-pro</span>
+            <span className="text-cyan-400 font-bold">~ %</span>
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              readOnly={isBusy}
+              className={`flex-1 bg-transparent text-white focus:outline-none font-mono ${isBusy ? 'caret-transparent' : 'caret-emerald-400'}`}
+              autoFocus
+              spellCheck={false}
+            />
+          </div>
+          <div ref={bottomRef} />
         </div>
-        <div ref={bottomRef} />
       </div>
     </div>
   );

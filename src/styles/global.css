@@ -133,6 +133,55 @@
   }
 }
 
+/* Boot screen: CSS-only so it already runs while the JS loads. Hidden before
+   the first paint when the tab has booted before (inline script in Layout.astro). */
+html[data-booted] .boot-screen {
+  display: none;
+}
+
+.boot-progress {
+  width: 3%;
+  animation: boot-progress 1.8s cubic-bezier(0.45, 0, 0.25, 1) forwards;
+}
+
+@keyframes boot-progress {
+  35% { width: 30%; }
+  60% { width: 48%; }
+  to { width: 100%; }
+}
+
+/* Lite mode (weak GPUs, see src/lib/performance.ts): backdrop blur is by far
+   the most expensive effect here, so glass turns solid and blend layers go. */
+@layer components {
+  .lite .aero-glass,
+  .lite .aero-glass-strong,
+  .lite .macos-glass,
+  .lite [class*='backdrop-blur'] {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .lite .aero-glass {
+    background-color: rgba(232, 240, 243, 0.94);
+  }
+
+  .lite .aero-glass-strong {
+    background-color: rgba(246, 249, 250, 0.97);
+  }
+
+  .lite.dark .aero-glass {
+    background-color: rgba(16, 32, 38, 0.94);
+  }
+
+  .lite.dark .aero-glass-strong {
+    background-color: rgba(18, 30, 35, 0.97);
+  }
+
+  .lite .lock-noise {
+    display: none;
+  }
+}
+
 @keyframes notification-countdown {
   from { transform: scaleX(1); }
   to { transform: scaleX(0); }

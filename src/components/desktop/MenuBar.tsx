@@ -11,6 +11,7 @@ import {
   Sun,
   Moon,
   Sparkles,
+  LayoutGrid,
 } from '../ui/Icons';
 import { soundEngine } from '../ui/AudioFx';
 
@@ -27,6 +28,8 @@ export const MenuBar: React.FC = () => {
     isDarkMode,
     soundEnabled,
     lockScreen,
+    reboot,
+    setIsMissionControl,
   } = useDesktop();
 
   const [timeStr, setTimeStr] = useState<string>('');
@@ -133,8 +136,8 @@ export const MenuBar: React.FC = () => {
               </button>
               <button
                 onClick={() => {
-                  soundEngine.playSuccess();
-                  window.location.reload();
+                  soundEngine.playClick();
+                  reboot();
                 }}
                 className="w-full text-left px-3.5 py-1.5 hover:bg-blue-500 hover:text-white transition-colors"
               >
@@ -187,6 +190,18 @@ export const MenuBar: React.FC = () => {
         <span className="text-slate-600 dark:text-neutral-300">
           <Wifi size={13} />
         </span>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            soundEngine.playClick();
+            setIsMissionControl((prev) => !prev);
+          }}
+          className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+          title="Mission Control (F3 ou Ctrl+↑)"
+          aria-label="Mission Control"
+        >
+          <LayoutGrid size={13} />
+        </button>
         <button
           onClick={() => {
             soundEngine.playClick();

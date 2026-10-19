@@ -88,11 +88,19 @@ export interface StackTool {
   src?: string;
 }
 
+export type DayPhase = 'dawn' | 'day' | 'dusk' | 'night';
+
 export interface WallpaperTheme {
   id: string;
   name: string;
   thumbnail: string;
   type: 'gradient' | 'dynamic' | 'abstract' | 'minimal';
+  /** Daytime look, also used for thumbnails and server rendering. */
   cssBackground: string;
+  /** Variants that follow the visitor's local time (dynamic wallpapers only). */
+  timeOfDay?: Record<DayPhase, string>;
   isDarkDefault: boolean;
 }
+
+/** Boot screen, normal use, or the fake kernel panic from `sudo rm -rf /`. */
+export type SystemState = 'booting' | 'running' | 'panic';

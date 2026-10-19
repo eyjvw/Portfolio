@@ -244,11 +244,18 @@ export const STACK_TOOLS: StackTool[] = [
 export const WALLPAPERS: WallpaperTheme[] = [
   {
     id: 'etang',
-    name: 'Étang',
+    name: 'Étang (dynamique)',
     thumbnail: '🦢',
-    type: 'gradient',
+    type: 'dynamic',
     cssBackground:
       'radial-gradient(ellipse at 75% 0%, rgba(186,224,242,0.85) 0%, rgba(186,224,242,0) 55%), radial-gradient(ellipse at 15% 100%, rgba(120,170,80,0.55) 0%, rgba(120,170,80,0) 60%), linear-gradient(160deg, #0f2f3d 0%, #1d5a6e 35%, #2f7d6a 65%, #3f7f45 100%)',
+    // Follows the visitor's clock: pink dawn, the usual day, orange dusk, moonlit night.
+    timeOfDay: {
+      dawn: 'radial-gradient(ellipse at 75% 0%, rgba(255,198,176,0.8) 0%, rgba(255,198,176,0) 55%), radial-gradient(ellipse at 15% 100%, rgba(120,160,80,0.45) 0%, rgba(120,160,80,0) 60%), linear-gradient(160deg, #2b2742 0%, #5b4b6c 32%, #4c7a78 65%, #3b6c46 100%)',
+      day: 'radial-gradient(ellipse at 75% 0%, rgba(186,224,242,0.85) 0%, rgba(186,224,242,0) 55%), radial-gradient(ellipse at 15% 100%, rgba(120,170,80,0.55) 0%, rgba(120,170,80,0) 60%), linear-gradient(160deg, #0f2f3d 0%, #1d5a6e 35%, #2f7d6a 65%, #3f7f45 100%)',
+      dusk: 'radial-gradient(ellipse at 75% 0%, rgba(255,155,95,0.75) 0%, rgba(255,155,95,0) 55%), radial-gradient(ellipse at 15% 100%, rgba(95,125,60,0.45) 0%, rgba(95,125,60,0) 60%), linear-gradient(160deg, #1f1631 0%, #4d2b50 35%, #7b4a52 65%, #2f4a34 100%)',
+      night: 'radial-gradient(ellipse at 75% 0%, rgba(160,190,235,0.32) 0%, rgba(160,190,235,0) 42%), radial-gradient(ellipse at 15% 100%, rgba(40,95,72,0.4) 0%, rgba(40,95,72,0) 60%), linear-gradient(160deg, #050b14 0%, #0a1c2a 35%, #0e292b 65%, #0e2317 100%)',
+    },
     isDarkDefault: true,
   },
   {

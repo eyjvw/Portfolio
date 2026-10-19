@@ -11,8 +11,17 @@ import {
   Sparkles,
   Check,
   RotateCcw,
+  Gauge,
 } from '../ui/Icons';
 import { soundEngine } from '../ui/AudioFx';
+import { getPerfMode, isLite, setPerfMode } from '../../lib/performance';
+import type { PerfMode } from '../../lib/performance';
+
+const PERF_OPTIONS: { mode: PerfMode; label: string }[] = [
+  { mode: 'auto', label: 'Auto' },
+  { mode: 'lite', label: 'Économie' },
+  { mode: 'full', label: 'Maximum' },
+];
 
 export const SettingsApp: React.FC = () => {
   const {
@@ -25,6 +34,8 @@ export const SettingsApp: React.FC = () => {
   } = useDesktop();
 
   const [activeSection, setActiveSection] = useState<'wallpaper' | 'appearance' | 'about'>('wallpaper');
+  const [perfMode, setPerfModeState] = useState<PerfMode>(getPerfMode);
+  const [liteActive, setLiteActive] = useState(isLite);
 
   return (
     <div className="flex h-full bg-slate-50/80 dark:bg-[#1C1C1E]/80 select-text overflow-hidden">
@@ -190,6 +201,40 @@ export const SettingsApp: React.FC = () => {
                   }`}
                 />
               </button>
+            </div>
+
+            <div className="p-4 rounded-xl bg-white/70 dark:bg-[#252529]/70 border border-black/5 dark:border-white/10 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <Gauge size={20} className={liteActive ? 'text-amber-500' : 'text-blue-500'} />
+                <div>
+                  <p className="text-xs font-semibold text-slate-800 dark:text-neutral-200">Effets visuels</p>
+                  <p className="text-[11px] text-slate-500 dark:text-neutral-400">
+                    {liteActive
+                      ? 'Économie : transparence floutée désactivée pour rester fluide.'
+                      : 'Transparence et flou complets. Auto passe en économie si la machine rame.'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex shrink-0 rounded-lg bg-slate-200/70 dark:bg-neutral-800 p-0.5">
+                {PERF_OPTIONS.map(({ mode, label }) => (
+                  <button
+                    key={mode}
+                    onClick={() => {
+                      soundEngine.playClick();
+                      setPerfMode(mode);
+                      setPerfModeState(mode);
+                      setLiteActive(isLite());
+                    }}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+                      perfMode === mode
+                        ? 'bg-white dark:bg-neutral-600 text-slate-900 dark:text-white shadow-sm'
+                        : 'text-slate-500 dark:text-neutral-400 hover:text-slate-800 dark:hover:text-neutral-200'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}

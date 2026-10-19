@@ -53,6 +53,9 @@ import {
   Gamepad2,
   Bot,
   CornerDownLeft,
+  Power,
+  LayoutGrid,
+  Gauge,
 } from 'lucide-react';
 import type { AppId } from '../../types/os';
 
@@ -190,4 +193,7 @@ export {
   Gamepad2,
   Bot,
   CornerDownLeft,
+  Power,
+  LayoutGrid,
+  Gauge,
 };

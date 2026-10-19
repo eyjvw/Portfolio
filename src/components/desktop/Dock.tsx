@@ -45,6 +45,7 @@ const DockIconItem: React.FC<DockIconItemProps> = ({
 
       <motion.div
         ref={ref}
+        data-dock-app={appId}
         style={{ width, height: width }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}

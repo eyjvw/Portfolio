@@ -1,44 +1,77 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { DesktopProvider, useDesktop } from '../../context/DesktopContext';
 import { Wallpaper } from './Wallpaper';
 import { MenuBar } from './MenuBar';
 import { Dock } from './Dock';
 import { DesktopIcon } from './DesktopIcon';
 import { StackWidget } from './StackWidget';
+import { GithubWidget } from './GithubWidget';
 import { Spotlight } from './Spotlight';
 import { ControlCenter } from './ControlCenter';
 import { ContextMenu } from './ContextMenu';
 import { WindowFrame } from '../window/WindowFrame';
 import { LockScreen } from './LockScreen';
 import { Notification } from './Notification';
+import { BootScreen } from './BootScreen';
+import { KernelPanic } from './KernelPanic';
 
 import { IOSHomeScreen } from '../ios/IOSHomeScreen';
 import { IOSAppContainer } from '../ios/IOSAppContainer';
 
-import { FinderApp } from '../apps/FinderApp';
-import { ProjectsApp } from '../apps/ProjectsApp';
-import { ContactApp } from '../apps/ContactApp';
-import { TerminalApp } from '../apps/TerminalApp';
-import { AboutApp } from '../apps/AboutApp';
-import { SettingsApp } from '../apps/SettingsApp';
-import { SnakeApp } from '../apps/SnakeApp';
-import { AssistantApp } from '../apps/AssistantApp';
+import type { IslandNotification } from '../ios/DynamicIsland';
+import { AppSpinner } from '../ui/AppSpinner';
 
+import { APP_IDS } from '../../types/os';
 import type { AppId } from '../../types/os';
-import { Sparkles } from '../ui/Icons';
+import { Sparkles, RotateCcw } from '../ui/Icons';
+import { watchFrameRate } from '../../lib/performance';
 
-const WELCOME_NOTIFICATION = {
+// Each app is its own chunk, fetched when first opened (and preloaded once the
+// desktop is idle), which keeps the initial bundle down to the shell.
+const APP_LOADERS: Record<AppId, () => Promise<{ default: React.ComponentType }>> = {
+  finder: () => import('../apps/FinderApp').then((m) => ({ default: m.FinderApp })),
+  projects: () => import('../apps/ProjectsApp').then((m) => ({ default: m.ProjectsApp })),
+  contact: () => import('../apps/ContactApp').then((m) => ({ default: m.ContactApp })),
+  terminal: () => import('../apps/TerminalApp').then((m) => ({ default: m.TerminalApp })),
+  about: () => import('../apps/AboutApp').then((m) => ({ default: m.AboutApp })),
+  settings: () => import('../apps/SettingsApp').then((m) => ({ default: m.SettingsApp })),
+  snake: () => import('../apps/SnakeApp').then((m) => ({ default: m.SnakeApp })),
+  assistant: () => import('../apps/AssistantApp').then((m) => ({ default: m.AssistantApp })),
+};
+
+const APP_COMPONENTS = Object.fromEntries(
+  APP_IDS.map((id) => [id, lazy(APP_LOADERS[id])])
+) as Record<AppId, React.LazyExoticComponent<React.ComponentType>>;
+
+const WELCOME_NOTIFICATION: IslandNotification = {
   icon: <Sparkles size={20} />,
   title: 'Bienvenue sur le portfolio !',
   message: 'Explorez les projets, ouvrez le Terminal ou écrivez-moi via l’app Contact.',
 };
 
+const PANIC_NOTIFICATION: IslandNotification = {
+  icon: <RotateCcw size={20} />,
+  title: 'Votre ordinateur a redémarré',
+  message: 'Un problème est survenu. Évitez les sudo rm -rf / à l’avenir 😉',
+};
+
 const DesktopInner: React.FC = () => {
-  const { setSelectedDesktopItem, isLocked } = useDesktop();
+  const {
+    windows,
+    openApp,
+    setSelectedDesktopItem,
+    isLocked,
+    unlockScreen,
+    systemState,
+    isMissionControl,
+    setIsMissionControl,
+  } = useDesktop();
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
-  const [showWelcomeNotification, setShowWelcomeNotification] = useState(false);
+  const [notification, setNotification] = useState({ content: WELCOME_NOTIFICATION, open: false });
   const hasUnlockedOnce = useRef(false);
-  const dismissWelcome = useCallback(() => setShowWelcomeNotification(false), []);
+  const hasPanicked = useRef(false);
+  const dismissNotification = useCallback(() => setNotification((prev) => ({ ...prev, open: false })), []);
   const [isMobile, setIsMobile] = useState(false);
   const [activeMobileApp, setActiveMobileApp] = useState<AppId | null>(null);
 
@@ -52,12 +85,37 @@ const DesktopInner: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (isLocked || hasUnlockedOnce.current) return;
+    if (systemState === 'panic') hasPanicked.current = true;
+  }, [systemState]);
+
+  useEffect(() => {
+    if (isLocked) return;
+    const isFirstUnlock = !hasUnlockedOnce.current;
+    if (!isFirstUnlock && !hasPanicked.current) return;
     hasUnlockedOnce.current = true;
+    const content = hasPanicked.current ? PANIC_NOTIFICATION : WELCOME_NOTIFICATION;
+    hasPanicked.current = false;
+
     // Wait for the lock screen to finish fading out so the entrance is visible.
-    const timer = setTimeout(() => setShowWelcomeNotification(true), 600);
-    return () => clearTimeout(timer);
+    const timer = setTimeout(() => {
+      setNotification({ content, open: true });
+      // Recruiters land straight on the profile instead of hunting for it.
+      if (isFirstUnlock && !isMobile) openApp('about');
+    }, 600);
+    const idle = 'requestIdleCallback' in window ? requestIdleCallback : (cb: () => void) => setTimeout(cb, 2000);
+    idle(() => Object.values(APP_LOADERS).forEach((load) => load()));
+    const stopWatching = watchFrameRate();
+    return () => {
+      clearTimeout(timer);
+      stopWatching();
+    };
   }, [isLocked]);
+
+  const openResume = useCallback(() => {
+    unlockScreen();
+    if (isMobile) setActiveMobileApp('about');
+    else openApp('about');
+  }, [isMobile, unlockScreen, openApp]);
 
   const handleDesktopClick = () => {
     setSelectedDesktopItem(null);
@@ -72,27 +130,11 @@ const DesktopInner: React.FC = () => {
   };
 
   const renderAppContent = (appId: AppId) => {
-    switch (appId) {
-      case 'finder':
-        return <FinderApp />;
-      case 'projects':
-        return <ProjectsApp />;
-      case 'contact':
-        return <ContactApp />;
-      case 'terminal':
-        return <TerminalApp />;
-      case 'about':
-        return <AboutApp />;
-      case 'settings':
-        return <SettingsApp />;
-      case 'snake':
-        return <SnakeApp />;
-      case 'assistant':
-        return <AssistantApp />;
-      default:
-        return <ProjectsApp />;
-    }
+    const App = APP_COMPONENTS[appId] ?? APP_COMPONENTS.projects;
+    return <App />;
   };
+
+  const hasVisibleWindows = Object.values(windows).some((w) => w.isOpen && !w.isMinimized);
 
   return (
     <div
@@ -100,29 +142,34 @@ const DesktopInner: React.FC = () => {
       onContextMenu={handleContextMenu}
       className="relative w-screen h-screen overflow-hidden select-none font-sans"
     >
-      <LockScreen isMobile={isMobile} />
+      <AnimatePresence>{systemState === 'booting' && <BootScreen key="boot" />}</AnimatePresence>
+      <AnimatePresence>{systemState === 'panic' && <KernelPanic key="panic" />}</AnimatePresence>
+      <LockScreen isMobile={isMobile} onOpenResume={openResume} />
 
       <Wallpaper />
       {isMobile ? (
         <div className="relative w-full h-full flex flex-col z-20">
           <IOSHomeScreen
             onOpenApp={(appId) => setActiveMobileApp(appId)}
-            notification={showWelcomeNotification ? WELCOME_NOTIFICATION : null}
-            onDismissNotification={dismissWelcome}
+            notification={notification.open ? notification.content : null}
+            onDismissNotification={dismissNotification}
           />
           {activeMobileApp && (
             <IOSAppContainer
               appId={activeMobileApp}
               onClose={() => setActiveMobileApp(null)}
             >
-              {renderAppContent(activeMobileApp)}
+              <Suspense fallback={<AppSpinner />}>{renderAppContent(activeMobileApp)}</Suspense>
             </IOSAppContainer>
           )}
         </div>
       ) : (
         <>
           <MenuBar />
-          <StackWidget className="absolute top-14 right-5 z-10 hidden w-64 lg:block" />
+          <div className="absolute top-14 right-5 z-10 hidden w-64 flex-col gap-3 lg:flex">
+            <StackWidget />
+            <GithubWidget />
+          </div>
           <main
             className="absolute top-10 left-4 z-10 grid grid-flow-col grid-rows-6 gap-3 items-start p-2"
             role="region"
@@ -133,33 +180,34 @@ const DesktopInner: React.FC = () => {
             <DesktopIcon appId="contact" title="Contact" />
             <DesktopIcon appId="terminal" title="Terminal" />
           </main>
-          <Notification open={showWelcomeNotification} onClose={dismissWelcome} {...WELCOME_NOTIFICATION} />
+          <Notification open={notification.open} onClose={dismissNotification} {...notification.content} />
+
+          <AnimatePresence>
+            {isMissionControl && (
+              <motion.div
+                key="mission-control"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.25 }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsMissionControl(false);
+                }}
+                className="fixed inset-0 z-10 bg-black/35 backdrop-blur-sm flex items-center justify-center"
+                aria-label="Mission Control"
+              >
+                {!hasVisibleWindows && <p className="text-sm font-medium text-white/70">Aucune fenêtre ouverte</p>}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <section aria-label="Active Windows" className="pointer-events-none [&>*]:pointer-events-auto">
-            <WindowFrame appId="finder">
-              <FinderApp />
-            </WindowFrame>
-            <WindowFrame appId="projects">
-              <ProjectsApp />
-            </WindowFrame>
-            <WindowFrame appId="contact">
-              <ContactApp />
-            </WindowFrame>
-            <WindowFrame appId="terminal">
-              <TerminalApp />
-            </WindowFrame>
-            <WindowFrame appId="about">
-              <AboutApp />
-            </WindowFrame>
-            <WindowFrame appId="settings">
-              <SettingsApp />
-            </WindowFrame>
-            <WindowFrame appId="snake">
-              <SnakeApp />
-            </WindowFrame>
-            <WindowFrame appId="assistant">
-              <AssistantApp />
-            </WindowFrame>
+            {APP_IDS.map((appId) => (
+              <WindowFrame key={appId} appId={appId}>
+                {renderAppContent(appId)}
+              </WindowFrame>
+            ))}
           </section>
           <Dock />
           <Spotlight />

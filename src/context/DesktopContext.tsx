@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import type { AppId, WindowState, WallpaperTheme } from '../types/os';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import type { AppId, DayPhase, SystemState, WindowState, WallpaperTheme } from '../types/os';
 import { APPS, WALLPAPERS } from '../data/portfolio';
 import { soundEngine } from '../components/ui/AudioFx';
 
@@ -31,9 +31,22 @@ interface DesktopContextType {
   isLocked: boolean;
   lockScreen: () => void;
   unlockScreen: () => void;
+  isMissionControl: boolean;
+  setIsMissionControl: (val: boolean | ((prev: boolean) => boolean)) => void;
+  systemState: SystemState;
+  finishBoot: () => void;
+  reboot: () => void;
+  triggerKernelPanic: () => void;
 }
 
 const DesktopContext = createContext<DesktopContextType | null>(null);
+
+const getDayPhase = (hour: number): DayPhase => {
+  if (hour >= 6 && hour < 9) return 'dawn';
+  if (hour >= 9 && hour < 18) return 'day';
+  if (hour >= 18 && hour < 21) return 'dusk';
+  return 'night';
+};
 
 const DEFAULT_WINDOWS = (): Record<AppId, WindowState> => {
   const isMobile = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
@@ -69,7 +82,9 @@ export const DesktopProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [windows, setWindows] = useState<Record<AppId, WindowState>>(DEFAULT_WINDOWS);
   const [activeAppId, setActiveAppId] = useState<AppId | null>(null);
   const [highestZ, setHighestZ] = useState<number>(10);
-  const [wallpaper, setWallpaperState] = useState<WallpaperTheme>(WALLPAPERS[0]);
+  const [wallpaperTheme, setWallpaperState] = useState<WallpaperTheme>(WALLPAPERS[0]);
+  // Starts on 'day' so the server render and hydration agree; corrected on mount.
+  const [dayPhase, setDayPhase] = useState<DayPhase>('day');
   const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const [isSpotlightOpen, setIsSpotlightOpen] = useState<boolean>(false);
@@ -78,6 +93,8 @@ export const DesktopProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [selectedDesktopItem, setSelectedDesktopItem] = useState<string | null>(null);
   const [bouncingAppId, setBouncingAppId] = useState<AppId | null>(null);
   const [isLocked, setIsLocked] = useState<boolean>(true);
+  const [isMissionControl, setIsMissionControl] = useState<boolean>(false);
+  const [systemState, setSystemState] = useState<SystemState>('booting');
 
   const lockScreen = useCallback(() => {
     setIsAppleMenuOpen(false);
@@ -91,9 +108,45 @@ export const DesktopProvider: React.FC<{ children: React.ReactNode }> = ({ child
     soundEngine.playStartupChime();
   }, []);
 
+  const finishBoot = useCallback(() => setSystemState('running'), []);
+
+  const triggerKernelPanic = useCallback(() => setSystemState('panic'), []);
+
+  const reboot = useCallback(() => {
+    setIsAppleMenuOpen(false);
+    setIsControlCenterOpen(false);
+    setIsSpotlightOpen(false);
+    setIsMissionControl(false);
+    setWindows((prev) => {
+      const next = { ...prev };
+      APPS.forEach((app) => {
+        next[app.id] = { ...next[app.id], isOpen: false, isMinimized: false };
+      });
+      return next;
+    });
+    setActiveAppId(null);
+    setIsLocked(true);
+    setSystemState('booting');
+  }, []);
+
   useEffect(() => {
     soundEngine.enabled = soundEnabled;
   }, [soundEnabled]);
+
+  useEffect(() => {
+    const update = () => setDayPhase(getDayPhase(new Date().getHours()));
+    update();
+    const interval = setInterval(update, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const wallpaper = useMemo(
+    () =>
+      wallpaperTheme.timeOfDay
+        ? { ...wallpaperTheme, cssBackground: wallpaperTheme.timeOfDay[dayPhase] }
+        : wallpaperTheme,
+    [wallpaperTheme, dayPhase]
+  );
 
   useEffect(() => {
     if (isDarkMode) {
@@ -304,10 +357,16 @@ export const DesktopProvider: React.FC<{ children: React.ReactNode }> = ({ child
         e.preventDefault();
         setIsSpotlightOpen((prev) => !prev);
       }
+      // F3 and Ctrl+↑ are the macOS shortcuts for Mission Control.
+      if (e.key === 'F3' || (e.ctrlKey && e.key === 'ArrowUp')) {
+        e.preventDefault();
+        setIsMissionControl((prev) => !prev);
+      }
       if (e.key === 'Escape') {
         setIsSpotlightOpen(false);
         setIsControlCenterOpen(false);
         setIsAppleMenuOpen(false);
+        setIsMissionControl(false);
       }
     };
 
@@ -315,38 +374,57 @@ export const DesktopProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Memoized so consumers only re-render when something they use changed
+  // (callbacks are stable, so in practice only the state values matter).
+  const value = useMemo<DesktopContextType>(
+    () => ({
+      windows,
+      activeAppId,
+      openApp,
+      closeApp,
+      minimizeApp,
+      maximizeApp,
+      bringToFront,
+      updateWindowPosition,
+      updateWindowSize,
+      wallpaper,
+      setWallpaper,
+      isDarkMode,
+      setIsDarkMode,
+      soundEnabled,
+      setSoundEnabled,
+      isSpotlightOpen,
+      setIsSpotlightOpen,
+      isControlCenterOpen,
+      setIsControlCenterOpen,
+      isAppleMenuOpen,
+      setIsAppleMenuOpen,
+      selectedDesktopItem,
+      setSelectedDesktopItem,
+      bouncingAppId,
+      isLocked,
+      lockScreen,
+      unlockScreen,
+      isMissionControl,
+      setIsMissionControl,
+      systemState,
+      finishBoot,
+      reboot,
+      triggerKernelPanic,
+    }),
+    [
+      windows, activeAppId, openApp, closeApp, minimizeApp, maximizeApp, bringToFront,
+      updateWindowPosition, updateWindowSize, wallpaper, setWallpaper, isDarkMode,
+      setIsDarkMode, soundEnabled, setSoundEnabled, isSpotlightOpen, setIsSpotlightOpen,
+      isControlCenterOpen, setIsControlCenterOpen, isAppleMenuOpen, setIsAppleMenuOpen,
+      selectedDesktopItem, setSelectedDesktopItem, bouncingAppId, isLocked, lockScreen,
+      unlockScreen, isMissionControl, setIsMissionControl, systemState, finishBoot, reboot,
+      triggerKernelPanic,
+    ]
+  );
+
   return (
-    <DesktopContext.Provider
-      value={{
-        windows,
-        activeAppId,
-        openApp,
-        closeApp,
-        minimizeApp,
-        maximizeApp,
-        bringToFront,
-        updateWindowPosition,
-        updateWindowSize,
-        wallpaper,
-        setWallpaper,
-        isDarkMode,
-        setIsDarkMode,
-        soundEnabled,
-        setSoundEnabled,
-        isSpotlightOpen,
-        setIsSpotlightOpen,
-        isControlCenterOpen,
-        setIsControlCenterOpen,
-        isAppleMenuOpen,
-        setIsAppleMenuOpen,
-        selectedDesktopItem,
-        setSelectedDesktopItem,
-        bouncingAppId,
-        isLocked,
-        lockScreen,
-        unlockScreen,
-      }}
-    >
+    <DesktopContext.Provider value={value}>
       {children}
     </DesktopContext.Provider>
   );

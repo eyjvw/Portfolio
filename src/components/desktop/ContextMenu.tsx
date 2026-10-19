@@ -6,6 +6,7 @@ import {
   RotateCcw,
   Sparkles,
   Info,
+  LayoutGrid,
 } from '../ui/Icons';
 import { soundEngine } from '../ui/AudioFx';
 
@@ -16,10 +17,10 @@ interface ContextMenuProps {
 }
 
 export const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose }) => {
-  const { openApp, setIsSpotlightOpen } = useDesktop();
+  const { openApp, setIsMissionControl } = useDesktop();
 
   const menuWidth = 200;
-  const menuHeight = 220;
+  const menuHeight = 250;
   const adjustedX = Math.min(x, window.innerWidth - menuWidth - 10);
   const adjustedY = Math.min(y, window.innerHeight - menuHeight - 10);
 
@@ -77,6 +78,17 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose }) => {
           className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center gap-2 transition-colors"
         >
           <Info size={14} /> À propos de l'auteur
+        </button>
+        <div className="h-px bg-black/10 dark:bg-white/10 my-1" />
+        <button
+          onClick={() => {
+            soundEngine.playClick();
+            setIsMissionControl(true);
+            onClose();
+          }}
+          className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center gap-2 transition-colors"
+        >
+          <LayoutGrid size={14} /> Mission Control
         </button>
       </div>
     </div>
