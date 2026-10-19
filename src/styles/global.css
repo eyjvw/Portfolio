@@ -150,6 +150,24 @@ html[data-booted] .boot-screen {
   to { width: 100%; }
 }
 
+/* The boot cat slowly swings its tail, pivoting where it leaves the body. */
+.boot-screen .cat-tail {
+  transform-box: view-box;
+  transform-origin: 74px 107px;
+  animation: cat-tail 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes cat-tail {
+  from { transform: rotate(-7deg); }
+  to { transform: rotate(5deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boot-screen .cat-tail {
+    animation: none;
+  }
+}
+
 /* Lite mode (weak GPUs, see src/lib/performance.ts): backdrop blur is by far
    the most expensive effect here, so glass turns solid and blend layers go. */
 @layer components {

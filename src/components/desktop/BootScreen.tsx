@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useDesktop } from '../../context/DesktopContext';
-import { Monogram } from '../ui/Logo';
+import { CatLogo } from '../ui/Logo';
 
 const BOOT_MS = 1800;
 
@@ -49,7 +49,7 @@ export const BootScreen: React.FC = () => {
       aria-label="Démarrage"
       className="boot-screen fixed inset-0 z-[10000] flex flex-col items-center justify-center gap-12 bg-black text-white select-none"
     >
-      <Monogram size={88} strokeWidth={5} className="text-white/95" />
+      <CatLogo size={92} className="text-white" />
       <div className="h-[5px] w-[200px] overflow-hidden rounded-full bg-white/20">
         <div className="boot-progress h-full rounded-full bg-white" />
       </div>
